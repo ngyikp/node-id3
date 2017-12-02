@@ -65,6 +65,11 @@ const SFrames = {
         read: "readCommentFrame",
         name: "COMM"
     },
+    unsyncedLyrics: {
+        create: "createUnsyncedLyricsFrame",
+        read: "readCommentFrame",
+        name: "USLT"
+    },
     image: {
         create: "createPictureFrame",
         read: "readPictureFrame",
@@ -640,4 +645,42 @@ NodeID3.prototype.readCommentFrame = function(frame) {
     }
 
     return tags
+}
+
+/*
+**  comment => object {
+**      language:   string (3 characters),
+**      text:       string
+**      shortText:  string
+**  }
+**/
+NodeID3.prototype.createUnsyncedLyricsFrame = function(comment) {
+    comment = comment || {}
+    if(!comment.text) {
+        return null
+    }
+
+    // Create frame header
+    let buffer = new Buffer(10)
+    buffer.fill(0)
+    buffer.write("USLT", 0)                 //  Write header ID
+
+    let commentOptions = new Buffer(4)
+    commentOptions.fill(0)
+    commentOptions[0] = 0x01                // Encoding bit => UTF-16
+
+    //  Make default language eng (english)
+    if(comment.language) {
+        commentOptions.write(comment.language, 1)
+    } else {
+        commentOptions.write("eng", 1)
+    }
+    
+    let commentText = new Buffer(iconv.encode(comment.text, "utf16"))
+
+    comment.shortText = comment.shortText || ""
+    var commentShortText = iconv.encode(comment.shortText, "utf16")
+    commentShortText = Buffer.concat([commentShortText, (comment.shortText == "") ? new Buffer(2).fill(0) : new Buffer(1).fill(0)])
+    buffer.writeUInt32BE(commentOptions.length + commentShortText.length + commentText.length, 4)           //  Size of frame
+    return Buffer.concat([buffer, commentOptions, commentShortText, commentText])
 }
